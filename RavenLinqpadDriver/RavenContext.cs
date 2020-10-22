@@ -1,24 +1,26 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Text;
 using System.Threading.Tasks;
-using Raven.Abstractions.Data;
-using Raven.Client;
-using Raven.Client.Changes;
-using Raven.Client.Connection;
-using Raven.Client.Connection.Async;
-using Raven.Client.Connection.Profiling;
 using System.Reflection;
 using System.Net;
-using Raven.Client.Document;
-using Raven.Client.Indexes;
-using Raven.Client.Linq;
-using Raven.Client.Shard;
 using RavenLinqpadDriver.Common;
+using Raven.Client.Documents.Session;
+using Raven.Client.Documents;
+using Raven.Client.Documents.Changes;
+using Raven.Client.Documents.Session.Loaders;
+using Raven.Client.Documents.Linq;
+using Raven.Client.Http;
+using Raven.Client.Documents.Indexes;
+using System.Threading;
+using Raven.Client.Documents.BulkInsert;
+using System.Security.Cryptography.X509Certificates;
+using Raven.Client.Documents.Conventions;
+using Raven.Client.Documents.Subscriptions;
+using Raven.Client.Documents.Operations;
+using Raven.Client.Documents.Smuggler;
 
 namespace RavenLinqpadDriver
 {
@@ -35,9 +37,11 @@ namespace RavenLinqpadDriver
 
             _docStore = CreateDocStore(connInfo).Initialize();
             _lazySession = new Lazy<IDocumentSession>(_docStore.OpenSession);
-            SetupLogWriting();
+            
+            /* SetupLogWriting(); */
         }
 
+        /*
         private void SetupLogWriting()
         {
             // sharded doc stores don't have a jsonrequestfactory,
@@ -57,7 +61,9 @@ namespace RavenLinqpadDriver
                 _docStore.JsonRequestFactory.LogRequest += LogRequest;
             }
         }
+        */
 
+        /*
         void LogRequest(object sender, RequestResultArgs e)
         {
             if (LogWriter == null) return;
@@ -87,6 +93,7 @@ Total Size: {8:n0}",
             entry.AppendLine();
             LogWriter.WriteLine(entry.ToString());
         }
+        */
 
         private static IDocumentStore CreateDocStore(RavenConnectionDialogViewModel conn)
         {
@@ -138,6 +145,18 @@ Total Size: {8:n0}",
         }
 
         public event EventHandler AfterDispose;
+        public event EventHandler<BeforeStoreEventArgs> OnBeforeStore;
+        public event EventHandler<AfterSaveChangesEventArgs> OnAfterSaveChanges;
+        public event EventHandler<BeforeDeleteEventArgs> OnBeforeDelete;
+        public event EventHandler<BeforeQueryEventArgs> OnBeforeQuery;
+        public event EventHandler<SessionCreatedEventArgs> OnSessionCreated;
+        public event EventHandler<BeforeConversionToDocumentEventArgs> OnBeforeConversionToDocument;
+        public event EventHandler<AfterConversionToDocumentEventArgs> OnAfterConversionToDocument;
+        public event EventHandler<BeforeConversionToEntityEventArgs> OnBeforeConversionToEntity;
+        public event EventHandler<AfterConversionToEntityEventArgs> OnAfterConversionToEntity;
+        public event EventHandler<FailedRequestEventArgs> OnFailedRequest;
+        public event EventHandler<TopologyUpdatedEventArgs> OnTopologyUpdated;
+
         public IDatabaseChanges Changes(string database = null)
         {
             return _docStore.Changes(database);
@@ -158,11 +177,6 @@ Total Size: {8:n0}",
             return _docStore.DisableAggressiveCaching();
         }
 
-        public IDisposable SetRequestsTimeoutFor(TimeSpan timeout)
-        {
-            return _docStore.SetRequestsTimeoutFor(timeout);
-        }
-
         public IDocumentStore Initialize()
         {
             return _docStore.Initialize();
@@ -178,7 +192,7 @@ Total Size: {8:n0}",
             return _docStore.OpenAsyncSession(database);
         }
 
-        public IAsyncDocumentSession OpenAsyncSession(OpenSessionOptions sessionOptions)
+        public IAsyncDocumentSession OpenAsyncSession(SessionOptions sessionOptions)
         {
             return _docStore.OpenAsyncSession(sessionOptions);
         }
@@ -194,7 +208,7 @@ Total Size: {8:n0}",
             return _docStore.OpenSession(database);
         }
 
-        public IDocumentSession OpenSession(OpenSessionOptions sessionOptions)
+        public IDocumentSession OpenSession(SessionOptions sessionOptions)
         {
             return _docStore.OpenSession(sessionOptions);
         }
@@ -219,74 +233,9 @@ Total Size: {8:n0}",
             return _docStore.ExecuteIndexesAsync(indexCreationTasks);
         }
 
-        public void SideBySideExecuteIndex(AbstractIndexCreationTask indexCreationTask, Etag minimumEtagBeforeReplace = null, DateTime? replaceTimeUtc = null)
+        public BulkInsertOperation BulkInsert(string database = null, CancellationToken token = default)
         {
-            _docStore.SideBySideExecuteIndex(indexCreationTask, minimumEtagBeforeReplace, replaceTimeUtc);
-        }
-
-        public Task SideBySideExecuteIndexAsync(AbstractIndexCreationTask indexCreationTask, Etag minimumEtagBeforeReplace = null, DateTime? replaceTimeUtc = null)
-        {
-            return _docStore.SideBySideExecuteIndexAsync(indexCreationTask, minimumEtagBeforeReplace, replaceTimeUtc);
-        }
-
-        public void SideBySideExecuteIndexes(List<AbstractIndexCreationTask> indexCreationTasks, Etag minimumEtagBeforeReplace = null, DateTime? replaceTimeUtc = null)
-        {
-            _docStore.SideBySideExecuteIndexes(indexCreationTasks, minimumEtagBeforeReplace, replaceTimeUtc);
-        }
-
-        public Task SideBySideExecuteIndexesAsync(List<AbstractIndexCreationTask> indexCreationTasks, Etag minimumEtagBeforeReplace = null, DateTime? replaceTimeUtc = null)
-        {
-            return _docStore.SideBySideExecuteIndexesAsync(indexCreationTasks, minimumEtagBeforeReplace, replaceTimeUtc);
-        }
-
-        public void ExecuteTransformer(AbstractTransformerCreationTask transformerCreationTask)
-        {
-            _docStore.ExecuteTransformer(transformerCreationTask);
-        }
-
-        public Task ExecuteTransformerAsync(AbstractTransformerCreationTask transformerCreationTask)
-        {
-            return _docStore.ExecuteTransformerAsync(transformerCreationTask);
-        }
-
-        public Etag GetLastWrittenEtag()
-        {
-            return _docStore.GetLastWrittenEtag();
-        }
-
-        public BulkInsertOperation BulkInsert(string database = null, BulkInsertOptions options = null)
-        {
-            return _docStore.BulkInsert(database, options);
-        }
-
-        public void SetListeners(DocumentSessionListeners listeners)
-        {
-            _docStore.SetListeners(listeners);
-        }
-
-        public void InitializeProfiling()
-        {
-            _docStore.InitializeProfiling();
-        }
-
-        public ProfilingInformation GetProfilingInformationFor(Guid id)
-        {
-            return _docStore.GetProfilingInformationFor(id);
-        }
-
-        public NameValueCollection SharedOperationsHeaders
-        {
-            get { return _docStore.SharedOperationsHeaders; }
-        }
-
-        public HttpJsonRequestFactory JsonRequestFactory
-        {
-            get { return _docStore.JsonRequestFactory; }
-        }
-
-        public bool HasJsonRequestFactory
-        {
-            get { return _docStore.HasJsonRequestFactory; }
+            return _docStore.BulkInsert(database, token);
         }
 
         public string Identifier
@@ -295,49 +244,13 @@ Total Size: {8:n0}",
             set { _docStore.Identifier = value; }
         }
 
-        public IAsyncDatabaseCommands AsyncDatabaseCommands
-        {
-            get { return _docStore.AsyncDatabaseCommands; }
-        }
+        public DocumentConventions Conventions => _docStore.Conventions;
 
-        public IDatabaseCommands DatabaseCommands
-        {
-            get { return _docStore.DatabaseCommands; }
-        }
-
-        public DocumentConvention Conventions
-        {
-            get { return _docStore.Conventions; }
-        }
-
-        public string Url
-        {
-            get { return _docStore.Url; }
-        }
-
-        public IAsyncReliableSubscriptions AsyncSubscriptions
-        {
-            get { return _docStore.AsyncSubscriptions; }
-        }
-
-        public IReliableSubscriptions Subscriptions
-        {
-            get { return _docStore.Subscriptions; }
-        }
-
-        public DocumentSessionListeners Listeners
-        {
-            get { return _docStore.Listeners; }
-        }
+        public string[] Urls => _docStore.Urls;
 
         public void Delete<T>(T entity)
         {
             _lazySession.Value.Delete(entity);
-        }
-
-        public void Delete<T>(ValueType id)
-        {
-            _lazySession.Value.Delete<T>(id);
         }
 
         public void Delete(string id)
@@ -350,12 +263,12 @@ Total Size: {8:n0}",
             return _lazySession.Value.Include(path);
         }
 
-        public ILoaderWithInclude<T> Include<T>(Expression<Func<T, object>> path)
+        public ILoaderWithInclude<T> Include<T>(Expression<Func<T, string>> path)
         {
             return _lazySession.Value.Include(path);
         }
 
-        public ILoaderWithInclude<T> Include<T, TInclude>(Expression<Func<T, object>> path)
+        public ILoaderWithInclude<T> Include<T, TInclude>(Expression<Func<T, string>> path)
         {
             return _lazySession.Value.Include<T, TInclude>(path);
         }
@@ -365,59 +278,14 @@ Total Size: {8:n0}",
             return _lazySession.Value.Load<T>(id);
         }
 
-        public T[] Load<T>(IEnumerable<string> ids)
+        public Dictionary<string, T> Load<T>(IEnumerable<string> ids, Action<IIncludeBuilder<T>> includes)
         {
-            return _lazySession.Value.Load<T>(ids);
+            return _lazySession.Value.Load<T>(ids, includes);
         }
 
-        public T Load<T>(ValueType id)
+        public IRavenQueryable<T> Query<T>(string indexName = null, string collectionName = null, bool isMapReduce = false)
         {
-            return _lazySession.Value.Load<T>(id);
-        }
-
-        public T[] Load<T>(params ValueType[] ids)
-        {
-            return _lazySession.Value.Load<T>(ids);
-        }
-
-        public T[] Load<T>(IEnumerable<ValueType> ids)
-        {
-            return _lazySession.Value.Load<T>(ids);
-        }
-
-        public TResult Load<TTransformer, TResult>(string id, Action<ILoadConfiguration> configure = null) where TTransformer : AbstractTransformerCreationTask, new()
-        {
-            return _lazySession.Value.Load<TTransformer, TResult>(id, configure);
-        }
-
-        public TResult[] Load<TTransformer, TResult>(IEnumerable<string> ids, Action<ILoadConfiguration> configure = null) where TTransformer : AbstractTransformerCreationTask, new()
-        {
-            return _lazySession.Value.Load<TTransformer, TResult>(ids, configure);
-        }
-
-        public TResult Load<TResult>(string id, string transformer, Action<ILoadConfiguration> configure)
-        {
-            return _lazySession.Value.Load<TResult>(id, transformer, configure);
-        }
-
-        public TResult[] Load<TResult>(IEnumerable<string> ids, string transformer, Action<ILoadConfiguration> configure = null)
-        {
-            return _lazySession.Value.Load<TResult>(ids, transformer, configure);
-        }
-
-        public TResult Load<TResult>(string id, Type transformerType, Action<ILoadConfiguration> configure = null)
-        {
-            return _lazySession.Value.Load<TResult>(id, transformerType, configure);
-        }
-
-        public TResult[] Load<TResult>(IEnumerable<string> ids, Type transformerType, Action<ILoadConfiguration> configure = null)
-        {
-            return _lazySession.Value.Load<TResult>(ids, transformerType, configure);
-        }
-
-        public IRavenQueryable<T> Query<T>(string indexName, bool isMapReduce = false)
-        {
-            return _lazySession.Value.Query<T>(indexName, isMapReduce);
+            return _lazySession.Value.Query<T>(indexName, collectionName, isMapReduce);
         }
 
         public IRavenQueryable<T> Query<T>()
@@ -435,14 +303,14 @@ Total Size: {8:n0}",
             _lazySession.Value.SaveChanges();
         }
 
-        public void Store(object entity, Etag etag)
+        public void Store(object entity, string id)
         {
-            _lazySession.Value.Store(entity, etag);
+            _lazySession.Value.Store(entity, id);
         }
 
-        public void Store(object entity, Etag etag, string id)
+        public void Store(object entity, string changeVector, string id)
         {
-            _lazySession.Value.Store(entity, etag, id);
+            _lazySession.Value.Store(entity, changeVector, id);
         }
 
         public void Store(object entity)
@@ -450,14 +318,120 @@ Total Size: {8:n0}",
             _lazySession.Value.Store(entity);
         }
 
-        public void Store(object entity, string id)
+        public ISessionDocumentCounters CountersFor(string documentId)
         {
-            _lazySession.Value.Store(entity, id);
+            return _lazySession.Value.CountersFor(documentId);
         }
 
-        public ISyncAdvancedSessionOperation Advanced
+        public ISessionDocumentCounters CountersFor(object entity)
+        {
+            return _lazySession.Value.CountersFor(entity);
+        }
+
+        public void Delete(string id, string expectedChangeVector)
+        {
+            _lazySession.Value.Delete(id, expectedChangeVector);
+        }
+
+        ILoaderWithInclude<object> IDocumentSession.Include(string path)
+        {
+            return _lazySession.Value.Include(path);
+        }
+
+        public ILoaderWithInclude<T> Include<T>(Expression<Func<T, IEnumerable<string>>> path)
+        {
+            return _lazySession.Value.Include(path);
+        }
+
+        public ILoaderWithInclude<T> Include<T, TInclude>(Expression<Func<T, IEnumerable<string>>> path)
+        {
+            return _lazySession.Value.Include(path);
+        }
+
+        Dictionary<string, T> IDocumentSession.Load<T>(IEnumerable<string> ids)
+        {
+            return _lazySession.Value.Load<T>(ids);
+        }
+
+        public T Load<T>(string id, Action<IIncludeBuilder<T>> includes)
+        {
+            return _lazySession.Value.Load<T>(id, includes);
+        }
+
+        public IDatabaseChanges Changes(string database, string nodeTag)
+        {
+            return _docStore.Changes(database, nodeTag);
+        }
+
+        public IDisposable AggressivelyCacheFor(TimeSpan cacheDuration, string database = null)
+        {
+            return _docStore.AggressivelyCacheFor(cacheDuration, database);
+        }
+
+        public IDisposable AggressivelyCacheFor(TimeSpan cacheDuration, AggressiveCacheMode mode, string database = null)
+        {
+            return _docStore.AggressivelyCacheFor(cacheDuration, mode, database);
+        }
+
+        public IDisposable AggressivelyCache(string database = null)
+        {
+            return _docStore.AggressivelyCache(database);
+        }
+
+        public IDisposable DisableAggressiveCaching(string database = null)
+        {
+            return _docStore.DisableAggressiveCaching(database);
+        }
+
+        public void ExecuteIndex(AbstractIndexCreationTask task, string database = null)
+        {
+            _docStore.ExecuteIndex(task, database);
+        }
+
+        public void ExecuteIndexes(IEnumerable<AbstractIndexCreationTask> tasks, string database = null)
+        {
+            _docStore.ExecuteIndexes(tasks, database);
+        }
+
+        public Task ExecuteIndexAsync(AbstractIndexCreationTask task, string database = null, CancellationToken token = default)
+        {
+            return _docStore.ExecuteIndexAsync(task, database, token);
+        }
+
+        public Task ExecuteIndexesAsync(IEnumerable<AbstractIndexCreationTask> tasks, string database = null, CancellationToken token = default)
+        {
+            return _docStore.ExecuteIndexesAsync(tasks, database, token);
+        }
+
+        public RequestExecutor GetRequestExecutor(string database = null)
+        {
+            return _docStore.GetRequestExecutor(database);
+        }
+
+        public IDisposable SetRequestTimeout(TimeSpan timeout, string database = null)
+        {
+            return _docStore.SetRequestTimeout(timeout, database);
+        }
+
+        public IAdvancedSessionOperations Advanced
         {
             get { return _lazySession.Value.Advanced; }
         }
+
+        IAdvancedSessionOperations IDocumentSession.Advanced => _lazySession.Value.Advanced;
+
+        public X509Certificate2 Certificate => _docStore.Certificate;
+
+        DocumentConventions IDocumentStore.Conventions => _docStore.Conventions;
+
+        DocumentSubscriptions IDocumentStore.Subscriptions => _docStore.Subscriptions;
+
+        public string Database { get => _docStore.Database; set => _docStore.Database = value; }
+
+        public MaintenanceOperationExecutor Maintenance => _docStore.Maintenance;
+
+        public OperationExecutor Operations => _docStore.Operations;
+
+        public DatabaseSmuggler Smuggler => _docStore.Smuggler;
     }
 }

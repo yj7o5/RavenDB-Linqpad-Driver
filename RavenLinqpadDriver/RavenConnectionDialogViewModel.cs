@@ -4,15 +4,13 @@ using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.IO;
 using System.Linq;
-using System.Net;
 using System.Reflection;
-using System.Windows;
-using System.Xml.Linq;
 using LINQPad.Extensibility.DataContext;
-using Microsoft.Win32;
-using Raven.Client.Document;
-using Raven.Imports.Newtonsoft.Json;
 using System.Runtime.Serialization;
+using Newtonsoft.Json;
+using Raven.Client.Documents;
+using Microsoft.Win32;
+using System.Windows;
 
 namespace RavenLinqpadDriver
 {
@@ -301,20 +299,20 @@ namespace RavenLinqpadDriver
             {
                 var docStore = new DocumentStore
                 {
-                    Url = Url
+                    Urls = new string[0]
                 };
 
                 if (!string.IsNullOrWhiteSpace(DefaultDatabase))
-                    docStore.DefaultDatabase = DefaultDatabase.Trim();
+                    // docStore.DefaultDatabase = DefaultDatabase.Trim();
 
                 if (ResourceManagerId.HasValue)
-                    docStore.ResourceManagerId = ResourceManagerId.Value;
+                    // docStore.ResourceManagerId = ResourceManagerId.Value;
 
                 if (!string.IsNullOrWhiteSpace(Username))
-                    docStore.Credentials = new NetworkCredential(Username, Password);
+                    // docStore.Credentials = new NetworkCredential(Username, Password);
 
                 if (!string.IsNullOrWhiteSpace(ApiKey))
-                    docStore.ApiKey = ApiKey;
+                    // docStore.ApiKey = ApiKey;
 
                 return docStore;
             }
@@ -322,6 +320,8 @@ namespace RavenLinqpadDriver
             {
                 throw new Exception("Could not create DocumentStore", ex);
             }
+
+            return null;
         }
 
         public void BrowseAssemblies()
@@ -329,7 +329,7 @@ namespace RavenLinqpadDriver
             var win = new OpenFileDialog
             {
                 DefaultExt = ".dll",
-                Multiselect = true,
+                Multiselect = true
             };
 
             if (win.ShowDialog() != true)
